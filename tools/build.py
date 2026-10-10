@@ -9,7 +9,7 @@ r"""건담 외전 I 빌드(2026-10-10 PoC) — 음성 자막 훅 + 자막 자료
 import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import disc, hook, iso, subs, scgfx
+import disc, hook, iso, subs, scgfx, menugfx
 
 MOVIES = ('MV_OPD', 'MV_PRV')                                         # 2026-10-10 오프닝·다음 회 예고 자막
 OUT = os.path.join(ROOT, 'work', 'out', 'Mobile Suit Gundam Side Story I - Senritsu no Blue (Japan) (Track 01).bin')
@@ -28,7 +28,7 @@ def main():
     if '--write' in sys.argv:
         os.makedirs(os.path.dirname(OUT), exist_ok=True)
         files = {'/S0_0.BIN': s0, '/S0_1.BIN': s1, '/SC_1.BIN': sc1}
-        files['/3.BIN'] = scgfx.patch_3bin(disc.read('/3.BIN'))           # 타이틀 로고 부제(크기 그대로)
+        files['/3.BIN'] = menugfx.patch(scgfx.patch_3bin(disc.read('/3.BIN')))   # 타이틀 로고 부제 + STAGE SELECT 글 그림(크기 그대로)
         for mv in MOVIES:                                             # 동영상 자막(tools/moviesub.py 가 구운 것, 원본 크기 그대로 → 제자리)
             p = os.path.join(ROOT, 'work', 'kr', mv + '.BIN')
             d = open(p, 'rb').read()
