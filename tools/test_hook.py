@@ -8,14 +8,14 @@ import hook as H, subs, sh2sim as S
 
 
 def mem(blob):
-    m = S.Mem(); m.add(0x06000000, 0x100000); m.add(0x00200000, 0x100000); m.add(0x05C00000, 0x80000)
+    m = S.Mem(); m.add(0x06000000, 0x100000); m.add(0x00200000, 0x100000); m.add(0x05C00000, 0x80000); m.add(0x05F00000, 0x1000); m.add(0x05F80000, 0x200); m.w16(H.PRISB_SH, 0x0505)
     m._f(H.RES)[0][H.RES - 0x00200000:H.RES - 0x00200000 + len(blob)] = blob
     return m
 
 
 def ref_tex(lines):
     w8, nrow, chars = G.layout(lines); px = G.reference(w8, nrow, chars)
-    return w8, nrow, b''.join({0: b'\0\0', 1: b'\x80\0', 15: b'\xff\xff'}[int(v)] for v in px.ravel())
+    return w8, nrow, b''.join({0: b'\0\0', 1: struct.pack('>H', H.PIX - 1), 15: struct.pack('>H', H.PIX)}[int(v)] for v in px.ravel())
 
 
 def main():
@@ -39,7 +39,8 @@ def main():
                 cmd = [m.r16(O + 2 * i) for i in range(8)]
                 want = [0, 0, 0xA8, 0, H.TEXA, w8 << 8 | nrow * 8, (-w8 * 4) & 0xFFFF, (104 - nrow * 8) & 0xFFFF]
                 got = bytes(m.r8(H.TEX + i) for i in range(len(tex)))
-                c = (cmd == want, m.r16(X) == 0x5000 and m.r16(X + 2) == H.OWNL, m.r16(O + 32) == 0x8000,
+                c0 = m.r16(H.CRAM_BK) == 0 and m.r16(H.CRAM_BK + 2) == 0x7FFF and m.r16(H.PRISB_SH) == 0x0705 and m.r16(H.PRISB) == 0x0705
+                c = (cmd == want and c0, m.r16(X) == 0x5000 and m.r16(X + 2) == H.OWNL, m.r16(O + 32) == 0x8000,
                      m.r16(X + 32) == 0x4321, got == tex)
                 m.w32(H.STREAM + 0x0C, 5); S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
                 c += (m.r16(X) == 0x8000,)

@@ -44,6 +44,12 @@ STREAM = 0x06014220
 TEX = 0x25C70800; TEXA = (TEX & 0x7FFFF) // 8
 LIST = 0x25C00000
 OWN = 0x25C7F000; OWNL = (OWN & 0x7FFFF) // 8
+# ★우선순위(2026-10-10 PoC 2차 안 보임): 조종석 계기판·컷신 띠 = NBG0 우선순위 7, 스프라이트 PRISA‥D 모두 5 → 자막이 밑에 깔림.
+#   게임 스프라이트는 RGB 화소(S0)만 씀(스테이트 14장, 팔레트 우선순위 번호 1‥3 안 씀) → 자막은 팔레트 화소 «우선순위 번호 3»(종류 3: 비트 14‥13)으로,
+#   S3(PRISB 위 바이트)를 7 로 — SGL 이 VBlank-IN 에 RAM 사본 0x060FFCC0 을 VDP2 레지스터로 DMA 하므로 사본과 레지스터 둘 다 씀. 같은 7 이면 스프라이트가 위.
+PIX = 0x6000 | 0x7FF                 # 흰 글자 = CRAM 0x7FF · 테두리 = PIX−1 = CRAM 0x7FE(CRAOFB 스프라이트 0, 스테이트 모두 빈 칸)
+CRAM_BK = 0x25F00000 + 0x7FE * 2
+PRISB = 0x25F800F2; PRISB_SH = 0x060FFCC0 + 0xF2
 LEAD = 25; STEP = 12
 
 
@@ -90,6 +96,9 @@ def assemble():
     W(0x2152, 0x2558); a.br('bt', 'off')
     a.br('bsr', 'draw'); W(mov(5, 1))
     a.L('on')
+    a.ld(1, CRAM_BK); a.ld(0, 0x00007FFF); W(0x2102)                  # 0x7FE 검정 · 0x7FF 흰색
+    a.ld(1, PRISB_SH); W(0x6011, 0xC9FF)                               # r0 = 사본 PRISB 아래 바이트(S2)
+    W(movi(2, 7), shll8(2), OR(2, 0), 0x2101); a.ld(1, PRISB); W(0x2101)   # S3 = 7(사본·레지스터)
     a.ld(1, LIST); a.ld(3, 1024)
     a.L('il'); W(0x6011, exw(0, 0)); a.ld(2, 0x8000); W(0x3020); a.br('bt', 'iput')
     a.ld(2, 0x5000); W(0x3020); a.br('bf', 'inx')
@@ -142,9 +151,9 @@ def assemble():
     W(dt(3)); a.br('bf', 'gp')
     W(dt(10)); a.br('bf', 'ch')
     a.L('chd')
-    # 16비트 RGB 선형: 행 y(nrow*8) × 열 cx(w8) × 8 화소
+    # 16비트 선형(팔레트 화소, 우선순위 번호 3): 행 y(nrow*8) × 열 cx(w8) × 8 화소
     W(ldb0(8, 1), exb(0, 9), shll2(9), shll(9))
-    a.ld(10, BUF); W(addi(10, BSTR)); a.ld(11, TEX)
+    a.ld(10, BUF); W(addi(10, BSTR)); a.ld(11, TEX); a.ld(12, PIX)
     a.L('ry'); W(ldb0(8, 0), exb(0, 13), mov(10, 14))
     a.L('rx'); W(mov(14, 2))
     W(mov(2, 4), addi(4, -BSTR), mov(2, 5), addi(5, BSTR))
@@ -155,9 +164,9 @@ def assemble():
     W(ldb0(2, 1), exb(0, 7), 0x6077, AND(0, 1), exb(1, 1))
     W(movi(3, 8))
     a.L('eb'); W(mov(7, 0), 0xC880); a.br('bt', 'e1')
-    W(movi(0, -1)); a.br('bra', 'es'); W(0x0009)                       # 흰 글자 0xFFFF
+    W(mov(12, 0)); a.br('bra', 'es'); W(0x0009)                        # 흰 글자 PIX
     a.L('e1'); W(mov(1, 0), 0xC880); a.br('bt', 'e0')
-    W(movi(0, -128)); a.br('bra', 'es'); W(shll8(0))                   # 검정 테두리 0x8000
+    W(mov(12, 0)); a.br('bra', 'es'); W(addi(0, -1))                   # 검정 테두리 PIX−1
     a.L('e0'); W(movi(0, 0))
     a.L('es'); W(0x2B01, addi(11, 2), shll(7), shll(1), dt(3)); a.br('bf', 'eb')
     W(addi(14, 1), dt(13)); a.br('bf', 'rx')
