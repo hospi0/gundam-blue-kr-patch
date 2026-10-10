@@ -58,6 +58,9 @@ def main():
     print('링크 따라 진짜 END 에 점프 %s · DMA 끝에 다시 넣기 %s' % (hit, hit2)); ok &= hit and hit2
     m.w16(H.PRISB, 0x0505); m.w16(H.PRISB_SH, 0x0505); S.run(m, lab['vin'], calls={H.VIN: lambda r, mm: None})   # 레지스터 DMA 가 5 로 되돌린 뒤
     hit3 = m.r16(H.PRISB) == 0x0705; print('VBlank-IN 뒤 S3=7 다시 %s' % hit3); ok &= hit3
+    hit4 = m.r16(H.TPL) == 0x5000 and m.r16(H.TPL + 2) == H.OWNL
+    m.w32(H.STREAM + 0x0C, 5); S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
+    hit4 &= m.r16(H.TPL) == 0x8000; print('견본: 켜지면 점프·꺼지면 END %s' % hit4); ok &= hit4
     # 표에 없는 스트림 = 자막 없음
     m = mem(blob); m.w16(H.LIST, 0x8000); m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 5); m.w32(H.STREAM + 0x18, 100 * 735)
     S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None}); hit = m.r16(H.LIST) == 0x8000

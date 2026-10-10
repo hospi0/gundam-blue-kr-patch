@@ -42,7 +42,12 @@ END = 0x00250000                     # Sn_1/SC_1 적재 시작 — 넘으면 안
 VBI = 0x060449D6; VBI_LIT = 0x06044BE8           # ★VBlank-OUT(2026-10-10 PoC 1차 VBlank-IN 은 안 보임: IN 처리기가 명령표를 SCU DMA 로 보내고 PTMR=2 라 프레임 전환 때 바로 그림 → IN 뒤에 넣으면 늦고 다음 DMA 에 지워짐)
 STREAM = 0x06014220
 VIN = 0x0604487E; VIN_LIT = 0x06044BE4          # VBlank-IN — 처리기 안에서 VDP2 레지스터를 RAM 사본에서 DMA(동기) → 끝난 뒤 S3=7 다시(★반짝임 2: 본체가 사본을 5 로 되돌리는 프레임)
-DMAE = 0x0604486C; DMAE_LIT = 0x06044BF4       # SCU 2단계 DMA 끝(벡터 0x49) — 명령표 DMA 가 끝나면 깃발만 세움
+DMAE = 0x0604486C; DMAE_LIT = 0x06044BF4
+# ★반짝임 근본(2026-10-10 PoC 5차): SGL 이 VBlank-IN 에 SCU 간접 DMA 표(0x060C0000/0x060F0000 두 벌)로 명령표를 보내는데 마지막 항목 =
+#   «END 견본»(원래 S0_0 리터럴 풀의 0x8000 @0x0604845A) 30 B → 명령표 끝 칸. VDP1 그리기와 경쟁해 우리 점프가 프레임마다 있다 없다 함.
+#   → 그 원본 리터럴(0x06048474 = 0x8604845A, 비트 31 = 표 끝)을 우리 견본 TPL 로: 평소 END, 자막 켜지면 «건너뛰고 점프 → 우리 칸».
+#   TPL = S0_0 안 0x0603BAC0‥0x0603BD40(파일 0·스테이트 16장 모두 0·가리키는 리터럴 없음) — SCU DMA 가 읽으려면 상위 RAM 이어야 함.
+TPL = 0x0603BC00; TPL_LIT = 0x06048474; TPL_OLD = 0x8604845A       # SCU 2단계 DMA 끝(벡터 0x49) — 명령표 DMA 가 끝나면 깃발만 세움
 TEX = 0x25C70800; TEXA = (TEX & 0x7FFFF) // 8
 LIST = 0x25C00000
 OWN = 0x25C7F000; OWNL = (OWN & 0x7FFFF) // 8
@@ -121,7 +126,9 @@ def assemble():
     W(movi(1, 0))
     a.L('wret'); W(0x000B, 0x0009)
     # ---- ins: 찾은 칸을 «건너뛰고 점프 → 우리 칸» + 우리 칸(명령·END) ----
-    a.L('ins'); W(0x4F22); a.br('bsr', 'walk'); W(0x0009)
+    a.L('ins'); W(0x4F22)
+    a.ld(1, TPL); a.ld(0, 0x5000); W(0x2101); a.ld(0, OWNL); W(0x8111)   # 견본 = 우리 점프(다음 DMA 부터 게임이 써 넣음)
+    a.br('bsr', 'walk'); W(0x0009)
     W(0x2118); a.br('bt', 'iret')
     a.ld(0, 0x5000); W(0x2101); a.ld(0, OWNL); W(0x8111)
     a.ld(1, OWN); a.ld(2, 'cmd'); W(movi(3, 8))
@@ -129,7 +136,9 @@ def assemble():
     a.ld(0, 0x8000); W(0x2101)
     a.L('iret'); W(0x4F26, 0x000B, 0x0009)
     # ---- unins: 우리 점프 칸을 END 로 ----
-    a.L('unins'); W(0x4F22); a.br('bsr', 'walk'); W(0x0009)
+    a.L('unins'); W(0x4F22)
+    a.ld(1, TPL); a.ld(0, 0x8000); W(0x2101); W(movi(0, 0), 0x8111)      # 견본 = END
+    a.br('bsr', 'walk'); W(0x0009)
     W(0x2118); a.br('bt', 'uret')
     W(0x6011, exw(0, 0)); a.ld(2, 0x5000); W(0x3020); a.br('bf', 'uret')
     a.ld(0, 0x8000); W(0x2101)
@@ -218,6 +227,10 @@ def build(s0_0, s0_1, sub_blob):
     s0 = bytearray(s0_0)
     assert struct.unpack_from('>I', s0, VBI_LIT - 0x06020000)[0] == VBI
     struct.pack_into('>I', s0, VBI_LIT - 0x06020000, lab['vbi'])
+    assert struct.unpack_from('>I', s0, TPL_LIT - 0x06020000)[0] == TPL_OLD
+    struct.pack_into('>I', s0, TPL_LIT - 0x06020000, 0x80000000 | TPL)
+    o = TPL - 0x06020000; assert s0[o - 0x140:o + 0x140] == bytes(0x280)
+    s0[o:o + 2] = bytes([0x80, 0])                                          # 견본 처음 = END
     assert struct.unpack_from('>I', s0, VIN_LIT - 0x06020000)[0] == VIN
     struct.pack_into('>I', s0, VIN_LIT - 0x06020000, lab['vin'])
     assert struct.unpack_from('>I', s0, DMAE_LIT - 0x06020000)[0] == DMAE
