@@ -47,6 +47,15 @@ def main():
                 print('%s 쪽%d 게임명령%d: 명령 %s · 점프 %s · 우리END %s · 다음칸 그대로 %s · 그림 %s · 끝나면 END %s  %s' % ((v, pi, listlen) + c + (lines,)))
                 if not c[0]: print('   ', [hex(x) for x in cmd], [hex(x) for x in want])
                 ok &= all(c)
+    # 링크로 이어진 명령표: 0번 → 5번(점프 지정), 1번 = 가짜 END → 진짜 END(5번)에만 점프
+    v = 'V25'; pages = subs.pages_for(subs.POC[v]); t = int(round(pages[0][0] * 60)) + 2
+    m = mem(blob); m.w16(H.LIST, 0x1000); m.w16(H.LIST + 2, 5 * 32 // 8); m.w16(H.LIST + 32, 0x8000); m.w16(H.LIST + 5 * 32, 0x8000)
+    m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 19); m.w32(H.STREAM + 0x18, (t + H.LEAD) * 735 + 1)
+    S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
+    hit = m.r16(H.LIST + 5 * 32) == 0x5000 and m.r16(H.LIST + 32) == 0x8000
+    m.w16(H.LIST + 5 * 32, 0x8000); S.run(m, lab['dmae'], calls={H.DMAE: lambda r, mm: None})     # DMA 가 지운 뒤 DMA 끝 → 다시 넣음
+    hit2 = m.r16(H.LIST + 5 * 32) == 0x5000
+    print('링크 따라 진짜 END 에 점프 %s · DMA 끝에 다시 넣기 %s' % (hit, hit2)); ok &= hit and hit2
     # 표에 없는 스트림 = 자막 없음
     m = mem(blob); m.w16(H.LIST, 0x8000); m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 5); m.w32(H.STREAM + 0x18, 100 * 735)
     S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None}); hit = m.r16(H.LIST) == 0x8000

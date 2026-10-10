@@ -41,14 +41,16 @@ TAB = RES + 0x1000                   # 스트림 번호 → 묶음 표 + 묶음�
 END = 0x00250000                     # Sn_1/SC_1 적재 시작 — 넘으면 안 됨
 VBI = 0x060449D6; VBI_LIT = 0x06044BE8           # ★VBlank-OUT(2026-10-10 PoC 1차 VBlank-IN 은 안 보임: IN 처리기가 명령표를 SCU DMA 로 보내고 PTMR=2 라 프레임 전환 때 바로 그림 → IN 뒤에 넣으면 늦고 다음 DMA 에 지워짐)
 STREAM = 0x06014220
+DMAE = 0x0604486C; DMAE_LIT = 0x06044BF4       # SCU 2단계 DMA 끝(벡터 0x49) — 명령표 DMA 가 끝나면 깃발만 세움
 TEX = 0x25C70800; TEXA = (TEX & 0x7FFFF) // 8
 LIST = 0x25C00000
 OWN = 0x25C7F000; OWNL = (OWN & 0x7FFFF) // 8
 # ★우선순위(2026-10-10 PoC 2차 안 보임): 조종석 계기판·컷신 띠 = NBG0 우선순위 7, 스프라이트 PRISA‥D 모두 5 → 자막이 밑에 깔림.
 #   게임 스프라이트는 RGB 화소(S0)만 씀(스테이트 14장, 팔레트 우선순위 번호 1‥3 안 씀) → 자막은 팔레트 화소 «우선순위 번호 3»(종류 3: 비트 14‥13)으로,
 #   S3(PRISB 위 바이트)를 7 로 — SGL 이 VBlank-IN 에 RAM 사본 0x060FFCC0 을 VDP2 레지스터로 DMA 하므로 사본과 레지스터 둘 다 씀. 같은 7 이면 스프라이트가 위.
-PIX = 0x6000 | 0x7FF                 # 흰 글자 = CRAM 0x7FF · 테두리 = PIX−1 = CRAM 0x7FE(CRAOFB 스프라이트 0, 스테이트 모두 빈 칸)
-CRAM_BK = 0x25F00000 + 0x7FE * 2
+PIX = 0x6000 | 0x7FD                 # 흰 글자 = CRAM 0x7FD · 테두리 = PIX−1 = CRAM 0x7FC(CRAOFB 스프라이트 0, 스테이트 모두 빈 칸)
+#   ★0x7FE 금지 = «보통 그림자» 코드(2026-10-10 PoC 3차 테두리가 반투명으로 나옴)
+CRAM_BK = 0x25F00000 + 0x7FC * 2
 PRISB = 0x25F800F2; PRISB_SH = 0x060FFCC0 + 0xF2
 LEAD = 25; STEP = 12
 
@@ -96,32 +98,46 @@ def assemble():
     W(0x2152, 0x2558); a.br('bt', 'off')
     a.br('bsr', 'draw'); W(mov(5, 1))
     a.L('on')
-    a.ld(1, CRAM_BK); a.ld(0, 0x00007FFF); W(0x2102)                  # 0x7FE 검정 · 0x7FF 흰색
+    a.ld(1, CRAM_BK); a.ld(0, 0x00007FFF); W(0x2102)                  # 0x7FC 검정 · 0x7FD 흰색
     a.ld(1, PRISB_SH); W(0x6011, 0xC9FF)                               # r0 = 사본 PRISB 아래 바이트(S2)
     W(movi(2, 7), shll8(2), OR(2, 0), 0x2101); a.ld(1, PRISB); W(0x2101)   # S3 = 7(사본·레지스터)
-    a.ld(1, LIST); a.ld(3, 1024)
-    a.L('il'); W(0x6011, exw(0, 0)); a.ld(2, 0x8000); W(0x3020); a.br('bt', 'iput')
-    a.ld(2, 0x5000); W(0x3020); a.br('bf', 'inx')
-    W(0x8511, exw(0, 0)); a.ld(2, OWNL); W(0x3020); a.br('bt', 'iput')
-    a.L('inx'); W(addi(1, 32), dt(3)); a.br('bf', 'il')
-    a.br('bra', 'ret'); W(0x0009)
-    a.L('iput')                                                        # 게임 END 칸만 «건너뛰고 점프 → 우리 칸»
-    a.ld(0, 0x5000); W(0x2101); a.ld(0, OWNL); W(0x8111)
-    a.ld(1, OWN); a.ld(2, 'cmd'); W(movi(3, 8))
-    a.L('ic'); W(0x6026, 0x2102, addi(1, 4), dt(3)); a.br('bf', 'ic')
-    a.ld(0, 0x8000); W(0x2101)
+    a.br('bsr', 'ins'); W(0x0009)
     a.br('bra', 'ret'); W(0x0009)
     a.L('same'); W(0x2558); a.br('bf', 'on')
     a.L('off'); a.br('bsr', 'unins'); W(0x0009)
     a.L('ret'); W(0x4F26, 0x000B, 0x0009)
-    # ---- unins ----
-    a.L('unins'); a.ld(1, LIST); a.ld(3, 1024)
-    a.L('ul'); W(0x6011, exw(0, 0)); a.ld(2, 0x8000); W(0x3020); a.br('bt', 'uret')
-    a.ld(2, 0x5000); W(0x3020); a.br('bf', 'unx')
-    W(0x8511, exw(0, 0)); a.ld(2, OWNL); W(0x3020); a.br('bf', 'unx')
-    a.ld(0, 0x8000); W(0x2101); a.br('bra', 'uret'); W(0x0009)
-    a.L('unx'); W(addi(1, 32), dt(3)); a.br('bf', 'ul')
-    a.L('uret'); W(0x000B, 0x0009)
+    # ---- walk: VDP1 이 읽는 순서대로(다음 칸·점프·건너뛰기) 따라가 END 또는 우리 점프 칸 → r1(못 찾으면 0). r0‥r3 만 씀 ----
+    #   ★명령표가 링크로 이어짐(2026-10-10 컷신 스테이트: 앞 300칸 안에 END 없음) → 칸 순서로 훑으면 엉뚱한 END 를 잡음
+    a.L('walk'); a.ld(1, LIST); a.ld(3, 2048)
+    a.L('wl'); W(0x6011, exw(0, 0)); a.ld(2, 0x8000); W(0x3022); a.br('bt', 'wret')          # END(비트 15)
+    a.ld(2, 0x5000); W(0x3020); a.br('bf', 'wjp')
+    W(0x8511, exw(0, 0)); a.ld(2, OWNL); W(0x3020); a.br('bt', 'wret')                       # 우리 점프
+    W(0x6011, exw(0, 0))
+    a.L('wjp'); W(shlr8(0), shlr2(0), shlr2(0), 0xC903, 0x8801); a.br('bf', 'wnx')           # 점프 지정(1·5 → 아래 3비트 1)
+    W(0x8511, exw(0, 0), shll2(0), shll(0)); a.ld(2, LIST); W(ADD(2, 0), mov(0, 1)); a.br('bra', 'wdt'); W(0x0009)
+    a.L('wnx'); W(addi(1, 32))
+    a.L('wdt'); W(dt(3)); a.br('bf', 'wl')
+    W(movi(1, 0))
+    a.L('wret'); W(0x000B, 0x0009)
+    # ---- ins: 찾은 칸을 «건너뛰고 점프 → 우리 칸» + 우리 칸(명령·END) ----
+    a.L('ins'); W(0x4F22); a.br('bsr', 'walk'); W(0x0009)
+    W(0x2118); a.br('bt', 'iret')
+    a.ld(0, 0x5000); W(0x2101); a.ld(0, OWNL); W(0x8111)
+    a.ld(1, OWN); a.ld(2, 'cmd'); W(movi(3, 8))
+    a.L('ic'); W(0x6026, 0x2102, addi(1, 4), dt(3)); a.br('bf', 'ic')
+    a.ld(0, 0x8000); W(0x2101)
+    a.L('iret'); W(0x4F26, 0x000B, 0x0009)
+    # ---- unins: 우리 점프 칸을 END 로 ----
+    a.L('unins'); W(0x4F22); a.br('bsr', 'walk'); W(0x0009)
+    W(0x2118); a.br('bt', 'uret')
+    W(0x6011, exw(0, 0)); a.ld(2, 0x5000); W(0x3020); a.br('bf', 'uret')
+    a.ld(0, 0x8000); W(0x2101)
+    a.L('uret'); W(0x4F26, 0x000B, 0x0009)
+    # ---- DMA 끝(0x49) 감싸개: 원래 처리 뒤 자막이 켜져 있으면 점프 다시 넣기(★반짝임 — 명령표 DMA 직후·그리기 전에) ----
+    a.L('dmae'); W(0x4F22); a.ld(0, DMAE); W(0x400B, 0x0009)
+    a.ld(1, 'cur'); W(0x6012, 0x2008); a.br('bt', 'dret')
+    a.br('bsr', 'ins'); W(0x0009)
+    a.L('dret'); W(0x4F26, 0x000B, 0x0009)
     # ---- draw(r1 = 쪽) ----
     a.L('draw')
     W(0x4F22, push(1)); W(*[push(r) for r in range(8, 15)])
@@ -196,6 +212,8 @@ def build(s0_0, s0_1, sub_blob):
     s0 = bytearray(s0_0)
     assert struct.unpack_from('>I', s0, VBI_LIT - 0x06020000)[0] == VBI
     struct.pack_into('>I', s0, VBI_LIT - 0x06020000, lab['vbi'])
+    assert struct.unpack_from('>I', s0, DMAE_LIT - 0x06020000)[0] == DMAE
+    struct.pack_into('>I', s0, DMAE_LIT - 0x06020000, lab['dmae'])
     pad = RES - 0x00200000
     assert len(s0_1) <= pad, (len(s0_1), pad)
     blob = res + bytes(TAB - RES - len(res)) + sub_blob
