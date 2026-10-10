@@ -211,7 +211,11 @@ def assemble():
     a.ld(2, 'cmd')
     W(mov(7, 0), shll8(0), mov(5, 6), shll2(6), shll(6), OR(6, 0), 0x8125)          # SIZE = w8<<8 | nrow*8
     W(mov(7, 0), shll2(0), 0x600B, 0x8126)                                           # XA = −w8*4
-    W(mov(5, 0), shll2(0), shll(0)); W(movi(6, 104), 0x3608, mov(6, 0), 0x8127)      # YA = 104 − nrow*8
+    # YA(지역 좌표 y 112 기준) = 112 − nrow*8 − (nrow<4 이면 (4−nrow)*4) → 컷신 아래 띠(화면 y 192‥224, 32 px): 두 줄은 꽉, 한 줄은 가운데
+    #   ★2026-10-10 하스피 «자막이 좀 위» — 예전 바닥 8 px 띄움은 두 줄 윗줄이 영상에 걸침
+    W(mov(5, 0), shll2(0), shll(0), movi(6, 112), 0x3608, movi(0, 4), 0x3057); a.br('bf', 'ya')
+    W(0x3058, shll2(0), 0x3608)
+    a.L('ya'); W(mov(6, 0), 0x8127)
     W(0x4F26, 0x000B, 0x0009)
     # ---- stamp ----
     a.L('stamp')

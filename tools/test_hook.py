@@ -37,7 +37,7 @@ def main():
                 X = H.LIST + 32 * listlen; O = H.OWN
                 w8, nrow, tex = ref_tex(lines)
                 cmd = [m.r16(O + 2 * i) for i in range(8)]
-                want = [0, 0, 0xA8, 0, H.TEXA, w8 << 8 | nrow * 8, (-w8 * 4) & 0xFFFF, (104 - nrow * 8) & 0xFFFF]
+                want = [0, 0, 0xA8, 0, H.TEXA, w8 << 8 | nrow * 8, (-w8 * 4) & 0xFFFF, (112 - nrow * 8 - (max(0, 4 - nrow) * 4)) & 0xFFFF]
                 got = bytes(m.r8(H.TEX + i) for i in range(len(tex)))
                 c0 = m.r16(H.CRAM_BK) == 0 and m.r16(H.CRAM_BK + 2) == 0x7FFF and m.r16(H.PRISB_SH) == 0x0705 and m.r16(H.PRISB) == 0x0705
                 c = (cmd == want and c0, m.r16(X) == 0x5000 and m.r16(X + 2) == H.OWNL, m.r16(O + 32) == 0x8000,
