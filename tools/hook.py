@@ -58,7 +58,7 @@ PIX = 0x6000 | 0x7FD                 # 흰 글자 = CRAM 0x7FD · 테두리 = PI
 #   ★0x7FE 금지 = «보통 그림자» 코드(2026-10-10 PoC 3차 테두리가 반투명으로 나옴)
 CRAM_BK = 0x25F00000 + 0x7FC * 2
 PRISB = 0x25F800F2; PRISB_SH = 0x060FFCC0 + 0xF2
-LEAD = 25; STEP = 12
+LEAD = 25; STEP = 12; OFFN = 6
 
 
 def data_part():
@@ -66,7 +66,7 @@ def data_part():
     def put(name, b):
         nonlocal data
         data += bytes(-len(data) % 4); lab[name] = DATA + len(data); data += b
-    put('cur', bytes(4)); put('lcd', bytes(4)); put('cnt', bytes(4)); put('pay', bytes(4))
+    put('cur', bytes(4)); put('offc', bytes(4)); put('lcd', bytes(4)); put('cnt', bytes(4)); put('pay', bytes(4))
     put('cmd', struct.pack('>16H', 0x0000, 0, 0x00A8, 0, TEXA, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
     assert DATA + len(data) <= BUF
     return bytes(data), lab
@@ -97,9 +97,12 @@ def assemble():
     W(0x2668); a.br('bt', 'none')
     a.L('lp'); W(0x6015, exw(0, 0), 0x3303); a.br('bf', 'nx')
     W(0x6011, exw(0, 0), 0x3037); a.br('bf', 'nx')
-    W(0x8511, exw(0, 5), ADD(4, 5)); a.br('bra', 'have'); W(0x0009)
+    W(0x8511, exw(0, 5), ADD(4, 5)); a.ld(1, 'offc'); W(movi(0, 0), 0x2102); a.br('bra', 'have'); W(0x0009)
     a.L('nx'); W(addi(1, 6), dt(6)); a.br('bf', 'lp')
-    a.L('none'); W(movi(5, 0))
+    # ★«없음»이 OFFN 프레임 연달아야 끔(2026-10-10 PoC 6차 반짝임 — 명령표·견본은 정상, 상태값이 프레임마다 흔들리는 것으로 의심)
+    a.L('none'); a.ld(1, 'offc'); W(0x6012, addi(0, 1), 0x2102, movi(2, OFFN), 0x3023); a.br('bt', 'nz')
+    a.ld(1, 'cur'); W(0x6512); a.br('bra', 'have'); W(0x0009)
+    a.L('nz'); W(movi(5, 0))
     a.L('have'); a.ld(1, 'cur'); W(0x6012, 0x3050); a.br('bt', 'same')
     W(0x2152, 0x2558); a.br('bt', 'off')
     a.br('bsr', 'draw'); W(mov(5, 1))

@@ -42,8 +42,10 @@ def main():
                 c0 = m.r16(H.CRAM_BK) == 0 and m.r16(H.CRAM_BK + 2) == 0x7FFF and m.r16(H.PRISB_SH) == 0x0705 and m.r16(H.PRISB) == 0x0705
                 c = (cmd == want and c0, m.r16(X) == 0x5000 and m.r16(X + 2) == H.OWNL, m.r16(O + 32) == 0x8000,
                      m.r16(X + 32) == 0x4321, got == tex)
-                m.w32(H.STREAM + 0x0C, 5); S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
-                c += (m.r16(X) == 0x8000,)
+                m.w32(H.STREAM + 0x0C, 5)
+                S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None}); keep = m.r16(X) == 0x5000          # 한 프레임 «없음»은 유지
+                for _ in range(H.OFFN): S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
+                c += (keep and m.r16(X) == 0x8000,)
                 print('%s 쪽%d 게임명령%d: 명령 %s · 점프 %s · 우리END %s · 다음칸 그대로 %s · 그림 %s · 끝나면 END %s  %s' % ((v, pi, listlen) + c + (lines,)))
                 if not c[0]: print('   ', [hex(x) for x in cmd], [hex(x) for x in want])
                 ok &= all(c)
@@ -59,7 +61,8 @@ def main():
     m.w16(H.PRISB, 0x0505); m.w16(H.PRISB_SH, 0x0505); S.run(m, lab['vin'], calls={H.VIN: lambda r, mm: None})   # 레지스터 DMA 가 5 로 되돌린 뒤
     hit3 = m.r16(H.PRISB) == 0x0705; print('VBlank-IN 뒤 S3=7 다시 %s' % hit3); ok &= hit3
     hit4 = m.r16(H.TPL) == 0x5000 and m.r16(H.TPL + 2) == H.OWNL
-    m.w32(H.STREAM + 0x0C, 5); S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
+    m.w32(H.STREAM + 0x0C, 5)
+    for _ in range(H.OFFN + 1): S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
     hit4 &= m.r16(H.TPL) == 0x8000; print('견본: 켜지면 점프·꺼지면 END %s' % hit4); ok &= hit4
     # 표에 없는 스트림 = 자막 없음
     m = mem(blob); m.w16(H.LIST, 0x8000); m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 5); m.w32(H.STREAM + 0x18, 100 * 735)
