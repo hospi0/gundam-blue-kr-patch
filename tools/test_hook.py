@@ -56,6 +56,8 @@ def main():
     m.w16(H.LIST + 5 * 32, 0x8000); S.run(m, lab['dmae'], calls={H.DMAE: lambda r, mm: None})     # DMA 가 지운 뒤 DMA 끝 → 다시 넣음
     hit2 = m.r16(H.LIST + 5 * 32) == 0x5000
     print('링크 따라 진짜 END 에 점프 %s · DMA 끝에 다시 넣기 %s' % (hit, hit2)); ok &= hit and hit2
+    m.w16(H.PRISB, 0x0505); m.w16(H.PRISB_SH, 0x0505); S.run(m, lab['vin'], calls={H.VIN: lambda r, mm: None})   # 레지스터 DMA 가 5 로 되돌린 뒤
+    hit3 = m.r16(H.PRISB) == 0x0705; print('VBlank-IN 뒤 S3=7 다시 %s' % hit3); ok &= hit3
     # 표에 없는 스트림 = 자막 없음
     m = mem(blob); m.w16(H.LIST, 0x8000); m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 5); m.w32(H.STREAM + 0x18, 100 * 735)
     S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None}); hit = m.r16(H.LIST) == 0x8000

@@ -41,6 +41,7 @@ TAB = RES + 0x1000                   # 스트림 번호 → 묶음 표 + 묶음�
 END = 0x00250000                     # Sn_1/SC_1 적재 시작 — 넘으면 안 됨
 VBI = 0x060449D6; VBI_LIT = 0x06044BE8           # ★VBlank-OUT(2026-10-10 PoC 1차 VBlank-IN 은 안 보임: IN 처리기가 명령표를 SCU DMA 로 보내고 PTMR=2 라 프레임 전환 때 바로 그림 → IN 뒤에 넣으면 늦고 다음 DMA 에 지워짐)
 STREAM = 0x06014220
+VIN = 0x0604487E; VIN_LIT = 0x06044BE4          # VBlank-IN — 처리기 안에서 VDP2 레지스터를 RAM 사본에서 DMA(동기) → 끝난 뒤 S3=7 다시(★반짝임 2: 본체가 사본을 5 로 되돌리는 프레임)
 DMAE = 0x0604486C; DMAE_LIT = 0x06044BF4       # SCU 2단계 DMA 끝(벡터 0x49) — 명령표 DMA 가 끝나면 깃발만 세움
 TEX = 0x25C70800; TEXA = (TEX & 0x7FFFF) // 8
 LIST = 0x25C00000
@@ -133,6 +134,11 @@ def assemble():
     W(0x6011, exw(0, 0)); a.ld(2, 0x5000); W(0x3020); a.br('bf', 'uret')
     a.ld(0, 0x8000); W(0x2101)
     a.L('uret'); W(0x4F26, 0x000B, 0x0009)
+    # ---- VBlank-IN 감싸개: 원래 처리(레지스터 DMA) 뒤 자막이 켜져 있으면 PRISB = 사본 아래 바이트 | S3 7 ----
+    a.L('vin'); W(0x4F22); a.ld(0, VIN); W(0x400B, 0x0009)
+    a.ld(1, 'cur'); W(0x6012, 0x2008); a.br('bt', 'vret')
+    a.ld(1, PRISB_SH); W(0x6011, 0xC9FF, movi(2, 7), shll8(2), OR(2, 0)); a.ld(1, PRISB); W(0x2101)
+    a.L('vret'); W(0x4F26, 0x000B, 0x0009)
     # ---- DMA 끝(0x49) 감싸개: 원래 처리 뒤 자막이 켜져 있으면 점프 다시 넣기(★반짝임 — 명령표 DMA 직후·그리기 전에) ----
     a.L('dmae'); W(0x4F22); a.ld(0, DMAE); W(0x400B, 0x0009)
     a.ld(1, 'cur'); W(0x6012, 0x2008); a.br('bt', 'dret')
@@ -212,6 +218,8 @@ def build(s0_0, s0_1, sub_blob):
     s0 = bytearray(s0_0)
     assert struct.unpack_from('>I', s0, VBI_LIT - 0x06020000)[0] == VBI
     struct.pack_into('>I', s0, VBI_LIT - 0x06020000, lab['vbi'])
+    assert struct.unpack_from('>I', s0, VIN_LIT - 0x06020000)[0] == VIN
+    struct.pack_into('>I', s0, VIN_LIT - 0x06020000, lab['vin'])
     assert struct.unpack_from('>I', s0, DMAE_LIT - 0x06020000)[0] == DMAE
     struct.pack_into('>I', s0, DMAE_LIT - 0x06020000, lab['dmae'])
     pad = RES - 0x00200000
