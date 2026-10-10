@@ -32,7 +32,7 @@ def main():
                 m = mem(blob)
                 for q in range(listlen): m.w16(H.LIST + 32 * q, 0x0000); m.w16(H.LIST + 32 * q + 8, 0x1234)
                 m.w16(H.LIST + 32 * listlen, 0x8000); m.w16(H.LIST + 32 * listlen + 32, 0x4321)
-                m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, k); m.w32(H.STREAM + 0x18, (t + H.LEAD) * 735 + 1)
+                m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, k); m.w32(H.STREAM + 0x18, (t + H.LEAD) * H.BPF + 1)
                 S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
                 X = H.LIST + 32 * listlen; O = H.OWN
                 w8, nrow, tex = ref_tex(lines)
@@ -52,7 +52,7 @@ def main():
     # 링크로 이어진 명령표: 0번 → 5번(점프 지정), 1번 = 가짜 END → 진짜 END(5번)에만 점프
     v = 'V25'; pages = subs.pages_for(subs.load()[v]); t = int(round(pages[0][0] * 60)) + 2
     m = mem(blob); m.w16(H.LIST, 0x1000); m.w16(H.LIST + 2, 5 * 32 // 8); m.w16(H.LIST + 32, 0x8000); m.w16(H.LIST + 5 * 32, 0x8000)
-    m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 19); m.w32(H.STREAM + 0x18, (t + H.LEAD) * 735 + 1)
+    m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 19); m.w32(H.STREAM + 0x18, (t + H.LEAD) * H.BPF + 1)
     S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
     hit = m.r16(H.LIST + 5 * 32) == 0x5000 and m.r16(H.LIST + 32) == 0x8000
     m.w16(H.LIST + 5 * 32, 0x8000); S.run(m, lab['dmae'], calls={H.DMAE: lambda r, mm: None})     # DMA 가 지운 뒤 DMA 끝 → 다시 넣음
@@ -65,7 +65,7 @@ def main():
     for _ in range(H.OFFN + 1): S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
     hit4 &= m.r16(H.TPL) == 0x8000; print('견본: 켜지면 점프·꺼지면 END %s' % hit4); ok &= hit4
     # 표에 없는 스트림 = 자막 없음
-    m = mem(blob); m.w16(H.LIST, 0x8000); m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 0); m.w32(H.STREAM + 0x18, 100 * 735)   # V06 = 자막 없음
+    m = mem(blob); m.w16(H.LIST, 0x8000); m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 0); m.w32(H.STREAM + 0x18, 100 * H.BPF)   # V06 = 자막 없음
     S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None}); hit = m.r16(H.LIST) == 0x8000
     print('표에 없는 스트림 = 자막 없음', hit); ok &= hit
     print('코드 %d B · 상주 끝 %s(한계 %s)' % (len(res), hex(H.TAB + len(sb)), hex(H.END)))
