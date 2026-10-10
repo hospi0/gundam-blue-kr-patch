@@ -92,7 +92,21 @@ def payload(rows):
     return b + bytes(-len(b) % 4), pages
 
 
-def blob(base, voices=POC):
+TSV = os.path.join(ROOT, 'work', 'text', 'voice_ko.tsv')
+
+
+def load():
+    """work/text/voice_ko.tsv(id·시작·끝·원문·번역) → {'V25': [(초, 초, 번역)…]} — 번역 빈 줄은 자막 없음"""
+    out = {}
+    for ln in open(TSV, encoding='utf-8').read().splitlines()[1:]:
+        c = ln.split('	')
+        if len(c) < 5 or not c[4].strip(): continue
+        out.setdefault(c[0].split('_')[0], []).append((float(c[1]), float(c[2]), c[4].strip()))
+    return out
+
+
+def blob(base, voices=None):
+    voices = voices or load()
     """상주 자료: 표 32×u32(스트림 번호 → 묶음 주소) + 묶음들"""
     tab = [0] * 32; body = bytearray(); info = {}
     for v, rows in sorted(voices.items()):

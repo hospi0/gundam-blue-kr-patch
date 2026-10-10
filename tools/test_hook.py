@@ -25,7 +25,7 @@ def main():
     blob = res + bytes(H.TAB - H.RES - len(res)) + sb
     ok = True
     for v in ('V25', 'V07'):
-        pages = subs.pages_for(subs.POC[v]); k = int(v[1:]) - 6
+        pages = subs.pages_for(subs.load()[v]); k = int(v[1:]) - 6
         for pi in (0, len(pages) - 1):
             t0, t1, lines = pages[pi]; t = int(round(t0 * 60)) + 2
             for listlen in (0, 3):
@@ -50,7 +50,7 @@ def main():
                 if not c[0]: print('   ', [hex(x) for x in cmd], [hex(x) for x in want])
                 ok &= all(c)
     # 링크로 이어진 명령표: 0번 → 5번(점프 지정), 1번 = 가짜 END → 진짜 END(5번)에만 점프
-    v = 'V25'; pages = subs.pages_for(subs.POC[v]); t = int(round(pages[0][0] * 60)) + 2
+    v = 'V25'; pages = subs.pages_for(subs.load()[v]); t = int(round(pages[0][0] * 60)) + 2
     m = mem(blob); m.w16(H.LIST, 0x1000); m.w16(H.LIST + 2, 5 * 32 // 8); m.w16(H.LIST + 32, 0x8000); m.w16(H.LIST + 5 * 32, 0x8000)
     m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 19); m.w32(H.STREAM + 0x18, (t + H.LEAD) * 735 + 1)
     S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
@@ -65,7 +65,7 @@ def main():
     for _ in range(H.OFFN + 1): S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None})
     hit4 &= m.r16(H.TPL) == 0x8000; print('견본: 켜지면 점프·꺼지면 END %s' % hit4); ok &= hit4
     # 표에 없는 스트림 = 자막 없음
-    m = mem(blob); m.w16(H.LIST, 0x8000); m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 5); m.w32(H.STREAM + 0x18, 100 * 735)
+    m = mem(blob); m.w16(H.LIST, 0x8000); m.w32(H.STREAM + 0x0C, 3); m.w32(H.STREAM + 4, 0); m.w32(H.STREAM + 0x18, 100 * 735)   # V06 = 자막 없음
     S.run(m, lab['vbi'], calls={H.VBI: lambda r, mm: None}); hit = m.r16(H.LIST) == 0x8000
     print('표에 없는 스트림 = 자막 없음', hit); ok &= hit
     print('코드 %d B · 상주 끝 %s(한계 %s)' % (len(res), hex(H.TAB + len(sb)), hex(H.END)))
