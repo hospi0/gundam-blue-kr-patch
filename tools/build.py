@@ -8,7 +8,7 @@ r"""건담 외전 I 빌드(2026-10-10 PoC) — 음성 자막 훅 + 자막 자료
 import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import disc, hook, iso, subs
+import disc, hook, iso, subs, scgfx
 
 OUT = os.path.join(ROOT, 'work', 'out', 'Mobile Suit Gundam Side Story I - Senritsu no Blue (Japan) (Track 01).bin')
 
@@ -16,12 +16,16 @@ OUT = os.path.join(ROOT, 'work', 'out', 'Mobile Suit Gundam Side Story I - Senri
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
     sb, info = subs.blob(hook.TAB)
-    s0, s1, lab = hook.build(disc.read('/S0_0.BIN'), disc.read('/S0_1.BIN'), sb)
+    s01 = scgfx.patch_s01(disc.read('/S0_1.BIN'))                     # 시나리오 제목 5장(크기 그대로) — 훅 붙이기 전에
+    s0, s1, lab = hook.build(disc.read('/S0_0.BIN'), s01, sb)
+    sc1, glog, ns, nu = scgfx.patch_sc1(disc.read('/SC_1.BIN'))        # 결과 화면 한마디 14·항목 이름·평가(제자리)
+    assert len(sc1) == len(disc.read('/SC_1.BIN'))
     print('① 자막 묶음 %s · 상주 끝 %s' % (info, hex(hook.TAB + len(sb))))
     print('② S0_1 %d B(원래 %d) · S0_0 VBI → %s' % (len(s1), len(disc.read('/S0_1.BIN')), hex(lab['vbi'])))
+    print('③ 그림: 제목 5 · 한마디 %d · 항목 이름 %d곳 · 평가 %d곳' % (len(glog), ns, nu))
     if '--write' in sys.argv:
         os.makedirs(os.path.dirname(OUT), exist_ok=True)
-        iso.patch(OUT, {'/S0_0.BIN': s0, '/S0_1.BIN': s1})
+        iso.patch(OUT, {'/S0_0.BIN': s0, '/S0_1.BIN': s1, '/SC_1.BIN': sc1})
 
 
 if __name__ == '__main__':
